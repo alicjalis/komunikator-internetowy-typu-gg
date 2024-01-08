@@ -1,78 +1,75 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <string.h>
-#include <arpa/inet.h>
 #include <unistd.h>
 #include <pthread.h>
 
-#define MAX_CLIENTS 100
+#define MAXLINE 1024
 
-int client_sockets[MAX_CLIENTS];
-int num_clients = 0;
+void *handle_client(void *arg);
 
-pthread_mutex_t lock;
+int main(int argc, char *argv[]) {
+ int listenfd, connfd;
+ char buff[MAXLINE];
+ struct sockaddr_in servaddr;
 
-void handle_client(int client_socket) {
-   char client_message[2000];
-   recv(client_socket, client_message, 2000, 0);
+ // Tworzenie gniazda
+ if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    perror("socket error");
+    exit(1);
+ }
 
-   // Wysyłanie wiadomości do innych klientów
-   for (int i = 0; i < num_clients; i++) {
-       if (client_sockets[i] != client_socket) {
-           send(client_sockets[i], client_message, strlen(client_message), 0);
-       }
-   }
+ // Konfiguracja adresu serwera
+ bzero(&servaddr, sizeof(servaddr));
+ servaddr.sin_family = AF_INET;
+ servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+ servaddr.sin_port = htons(atoi(argv[1]));
 
-   close(client_socket);
+ // Powiązanie adresu z gniazdem
+ if ((bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr))) == -1) {
+    perror("bind error");
+    exit(1);
+ }
+
+ // Nasłuchiwanie na gnieździe
+ if ((listen(listenfd, 5)) == -1) {
+    perror("listen error");
+    exit(1);
+ }
+
+ while (1) {
+    // Akceptacja połączenia od klienta
+    if ((connfd = accept(listenfd, (struct sockaddr *)NULL, NULL)) == -1) {
+        perror("accept error");
+        continue;
+    }
+
+    // Utworzenie nowego wątku do obsługi połączenia klienta
+    pthread_t thread_id;
+    if (pthread_create(&thread_id, NULL, handle_client, (void*)&connfd) != 0) {
+        perror("pthread_create error");
+        continue;
+    }
+ }
+
+ return 0;
 }
 
-int main() {
-   int serverSocket, clientSocket;
-   struct sockaddr_in serverAddr;
-   struct sockaddr_storage serverStorage;
-   socklen_t addr_size;
+void *handle_client(void *arg) {
+ int connfd = *(int*)arg;
+ char buff[MAXLINE];
 
-   // Inicjalizacja mutex
-   pthread_mutex_init(&lock, NULL);
+ // Odbieranie wiadomości od klienta
+ bzero(buff, sizeof(buff));
+ read(connfd, buff, sizeof(buff)-1);
 
-   // Utwórz gniazdo
-   serverSocket = socket(PF_INET, SOCK_STREAM, 0);
+ // Wysyłanie wiadomości z powrotem do klienta
+ write(connfd, buff, strlen(buff));
 
-   // Skonfiguruj ustawienia struktury adresów serwera
-   serverAddr.sin_family = AF_INET;
-   serverAddr.sin_port = htons(7799);
-   serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-   memset(serverAddr.sin_zero, '\0', sizeof serverAddr.sin_zero);
+ // Zamykanie połączenia
+ close(connfd);
 
-   // Powiąż strukturę adresów z gniazdem
-   bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
-
-   // Nasłuchuj na gnieździe, z maksymalną kolejką żądań połączenia wynoszącą 40
-   if(listen(serverSocket,50)==0)
-       printf("Nasłuchiwanie\n");
-   else
-       printf("Błąd\n");
-
-   while(1) {
-       // Funkcja accept tworzy nowe gniazdo dla przychodzącego połączenia
-       addr_size = sizeof serverStorage;
-       clientSocket = accept(serverSocket, (struct sockaddr *) &serverStorage, &addr_size);
-
-       // Dodaj nowe połączenie do listy klientów
-       pthread_mutex_lock(&lock);
-       if (num_clients < MAX_CLIENTS) {
-           client_sockets[num_clients] = clientSocket;
-           num_clients++;
-       }
-       pthread_mutex_unlock(&lock);
-
-       // Dla każdego żądania klienta twórz proces potomny i przypisz mu żądanie klienta do obsługi
-       // Tak, że główna nit może obsługiwać następne żądanie
-       pthread_t thread;
-       pthread_create(&thread, NULL, (void *) handle_client, (void *) clientSocket);
-       pthread_detach(thread);
-   }
-   return 0;
+ return NULL;
 }
