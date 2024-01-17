@@ -9,8 +9,6 @@
 
 #define MAX_USERS 15
 #define MAX_USERNAME_LENGTH 20
-#define MAX_ROOMS 10
-#define MAX_MEMBERS_PER_ROOM 5
 
 // Struktura przechowująca informacje o kliencie
 struct cln
@@ -74,6 +72,9 @@ void *cthread(void *arg)
     client_info->nickname[username_rc] = '\0';
     printf("Client connected: %s\n", client_info->nickname);
     addUser(&users, client_info->nickname);
+    char id_buffer[10];
+    sprintf(id_buffer, "%d\n", client_info->id);
+    write(cfd, id_buffer, strlen(id_buffer));
 
     while (1)
     {
