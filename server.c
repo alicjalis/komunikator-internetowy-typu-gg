@@ -72,6 +72,7 @@ void *cthread(void *arg)
     client_info->nickname[username_rc] = '\0';
     printf("Client connected: %s\n", client_info->nickname);
     addUser(&users, client_info->nickname);
+    client_info->id = users.counter;
     char id_buffer[10];
     sprintf(id_buffer, "%d\n", client_info->id);
     write(cfd, id_buffer, strlen(id_buffer));
@@ -104,14 +105,34 @@ void *cthread(void *arg)
             int receiver_id;
             char message[256];
             sscanf(buf, "send_message %d %s", &receiver_id, message);
-            // Wysyłanie wiadomości do klienta o określonym id
+            // Sprawdzanie, czy klient o danym id istnieje
+            int client_exists = 0;
             for (size_t i = 0; i < users.counter; ++i)
             {
                 if (users.clients[i].id == receiver_id)
                 {
-                    write(users.clients[i].cfd, message, strlen(message));
+                    client_exists = 1;
                     break;
                 }
+            }
+            // Jeśli klient istnieje, wysyłamy mu wiadomość
+            if (client_exists)
+            {
+                for (size_t i = 0; i < users.counter; ++i)
+                {
+                    if (users.clients[i].id == receiver_id)
+                    {
+                        write(users.clients[i].cfd, message, strlen(message));
+                        break;
+                    }
+                }
+            }
+            // Jeśli klient nie istnieje, wysyłamy wiadomość o błędzie
+            else
+            {
+                char error_msg[256];
+                sprintf(error_msg, "No such user: %d\n", receiver_id);
+                write(cfd, error_msg, strlen(error_msg));
             }
         }
     }
