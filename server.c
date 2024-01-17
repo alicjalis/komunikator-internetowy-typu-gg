@@ -1,75 +1,153 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
+#include <arpa/inet.h>
 #include <pthread.h>
+#include <string.h>
 
-#define MAXLINE 1024
+#define MAX_USERS 15
+#define MAX_USERNAME_LENGTH 20
+#define MAX_ROOMS 10
+#define MAX_MEMBERS_PER_ROOM 5
 
-void *handle_client(void *arg);
+// Struktura przechowująca informacje o kliencie
+struct cln
+{
+    int cfd;
+    struct sockaddr_in caddr;
+    char nickname[MAX_USERNAME_LENGTH];
+    int id;
+};
 
-int main(int argc, char *argv[]) {
- int listenfd, connfd;
- char buff[MAXLINE];
- struct sockaddr_in servaddr;
+// Struktura przechowująca informacje o użytkownikach
+struct users
+{
+    size_t counter;
+    struct cln clients[MAX_USERS];
+};
+struct users users;
 
- // Tworzenie gniazda
- if ((listenfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    perror("socket error");
-    exit(1);
- }
+// Mutexy do synchronizacji dostępu do struktur users i rooms
+pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
- // Konfiguracja adresu serwera
- bzero(&servaddr, sizeof(servaddr));
- servaddr.sin_family = AF_INET;
- servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
- servaddr.sin_port = htons(atoi(argv[1]));
-
- // Powiązanie adresu z gniazdem
- if ((bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr))) == -1) {
-    perror("bind error");
-    exit(1);
- }
-
- // Nasłuchiwanie na gnieździe
- if ((listen(listenfd, 5)) == -1) {
-    perror("listen error");
-    exit(1);
- }
-
- while (1) {
-    // Akceptacja połączenia od klienta
-    if ((connfd = accept(listenfd, (struct sockaddr *)NULL, NULL)) == -1) {
-        perror("accept error");
-        continue;
+// Funkcja dodająca użytkownika do globalnej listy użytkowników
+void addUser(struct users *userList, const char *usernames)
+{
+    pthread_mutex_lock(&users_mutex);
+    if (userList->counter < MAX_USERS)
+    {
+        strcpy(userList->clients[userList->counter].nickname, usernames);
+        userList->clients[userList->counter].id = userList->counter;
+        userList->counter++;
     }
-
-    // Utworzenie nowego wątku do obsługi połączenia klienta
-    pthread_t thread_id;
-    if (pthread_create(&thread_id, NULL, handle_client, (void*)&connfd) != 0) {
-        perror("pthread_create error");
-        continue;
+    else
+    {
+        printf("User list is full. Cannot add more users.\n");
     }
- }
-
- return 0;
+    pthread_mutex_unlock(&users_mutex);
 }
 
-void *handle_client(void *arg) {
- int connfd = *(int*)arg;
- char buff[MAXLINE];
+// Funkcja wyświetlająca wszystkie nazwy zalogowanych użytkowników
+void showAllUsernames(struct cln *client)
+{
+    char message[512];
+    pthread_mutex_lock(&users_mutex);
+    sprintf(message, "All usernames:\n");
+    for (size_t i = 0; i < users.counter; ++i)
+    {
+        sprintf(message + strlen(message), "- %s\n", users.clients[i].nickname);
+    }
+    pthread_mutex_unlock(&users_mutex);
+    write(client->cfd, message, strlen(message));
+}
 
- // Odbieranie wiadomości od klienta
- bzero(buff, sizeof(buff));
- read(connfd, buff, sizeof(buff)-1);
+// Wątek obsługujący komunikację z klientem
+void *cthread(void *arg)
+{
+    struct cln *client_info = (struct cln *)arg;
+    int cfd = client_info->cfd;
+    char buf[256];
 
- // Wysyłanie wiadomości z powrotem do klienta
- write(connfd, buff, strlen(buff));
+    ssize_t username_rc = read(cfd, client_info->nickname, sizeof(client_info->nickname) - 1);
+    client_info->nickname[username_rc] = '\0';
+    printf("Client connected: %s\n", client_info->nickname);
+    addUser(&users, client_info->nickname);
 
- // Zamykanie połączenia
- close(connfd);
+    while (1)
+    {
+        ssize_t rc = read(cfd, buf, sizeof(buf));
+        if (rc <= 0)
+        {
+            // Błąd lub zamknięcie połączenia, wyjście z pętli
+            break;
+        }
 
- return NULL;
+        buf[rc] = '\0';
+        // Wychodzenie z aplikacji
+        if (strcmp(buf, "exit") == 0)
+        {
+            // dodać logike wychodzenia z aplikacji
+            close(cfd);
+            // free(client_info);
+            // Wyswietlanie wszystkich użytkownikow na komende "show_users"
+        }
+        else if (strcmp(buf, "show_users") == 0)
+        {
+            showAllUsernames(client_info);
+        }
+        // Obsluga komendy send_message
+        else if (strncmp(buf, "send_message ", 12) == 0)
+        {
+            int receiver_id;
+            char message[256];
+            sscanf(buf, "send_message %d %s", &receiver_id, message);
+            // Wysyłanie wiadomości do klienta o określonym id
+            for (size_t i = 0; i < users.counter; ++i)
+            {
+                if (users.clients[i].id == receiver_id)
+                {
+                    write(users.clients[i].cfd, message, strlen(message));
+                    break;
+                }
+            }
+        }
+    }
+    // Zamknięcie socketu klienta
+    // close(cfd);
+    free(client_info);
+
+    return NULL;
+}
+
+int main()
+{
+    pthread_t tid;
+    socklen_t sl;
+    int sfd;
+
+    struct sockaddr_in saddr;
+    saddr.sin_family = AF_INET;
+    saddr.sin_addr.s_addr = INADDR_ANY;
+    saddr.sin_port = htons(1234);
+
+    sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    bind(sfd, (struct sockaddr *)&saddr, sizeof(saddr));
+    listen(sfd, 10);
+
+    while (1)
+    {
+        int *cfd_ptr = malloc(sizeof(int));
+        sl = sizeof(struct sockaddr_in);
+        *cfd_ptr = accept(sfd, (struct sockaddr *)&saddr, &sl);
+
+        pthread_create(&tid, NULL, cthread, cfd_ptr);
+        pthread_detach(tid);
+    }
+
+    // Zamkniecie socketu servera
+    close(sfd);
+
+    return 0;
 }
