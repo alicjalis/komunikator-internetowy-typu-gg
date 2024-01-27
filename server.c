@@ -72,6 +72,7 @@ void *cthread(void *arg)
     client_info->nickname[username_rc] = '\0';
     printf("Client connected: %s\n", client_info->nickname);
     addUser(&users, client_info->nickname);
+    printf("niby dodalo\n");
     client_info->id = users.counter;
     char id_buffer[10];
     sprintf(id_buffer, "%d\n", client_info->id);
@@ -79,60 +80,62 @@ void *cthread(void *arg)
 
     while (1)
     {
+        printf("iteracja while\n");
         ssize_t rc = read(cfd, buf, sizeof(buf));
         if (rc <= 0)
         {
             // Błąd lub zamknięcie połączenia, wyjście z pętli
+            perror("Error reading data");
             break;
         }
 
         buf[rc] = '\0';
-        // Wychodzenie z aplikacji
-        if (strcmp(buf, "exit") == 0)
+        int received_id = atoi(buf); // Konwertowanie otrzymanego ciągu na int
+
+        // Sprawdzanie, czy klient o danym id istnieje
+        int client_exists = 0;
+        for (size_t i = 0; i < users.counter; ++i)
         {
-            // dodać logike wychodzenia z aplikacji
-            close(cfd);
-            // free(client_info);
-            // Wyswietlanie wszystkich użytkownikow na komende "show_users"
+            if (users.clients[i].id == received_id)
+            {
+                char send_msg[256];
+                sprintf(send_msg, "You can send a message\n");
+                write(cfd, send_msg, strlen(send_msg));
+                printf("client exists na 1\n");
+                client_exists = 1;
+                break;
+            }
         }
-        else if (strcmp(buf, "show_users") == 0)
+
+        if (!client_exists)
         {
-            showAllUsernames(client_info);
+            printf("No such user: %d\n", received_id);
+            char error_msg[256];
+            sprintf(error_msg, "No such user: %d\n", received_id);
+            write(cfd, error_msg, strlen(error_msg));
         }
-        // Obsluga komendy send_message
-        else if (strncmp(buf, "send_message ", 12) == 0)
+
+        if (client_exists == 1)
         {
-            int receiver_id;
             char message[256];
-            sscanf(buf, "send_message %d %s", &receiver_id, message);
-            // Sprawdzanie, czy klient o danym id istnieje
-            int client_exists = 0;
+            ssize_t msg_length = read(cfd, message, sizeof(message) - 1);
+            if (msg_length <= 0)
+            {
+                // Błąd lub zamknięcie połączenia, wyjście z pętli
+                perror("Error reading data");
+                break;
+            }
+
+            message[msg_length] = '\0';
+
+            // Wysyłanie wiadomości do odpowiedniego klienta
             for (size_t i = 0; i < users.counter; ++i)
             {
-                if (users.clients[i].id == receiver_id)
+                if (users.clients[i].id == received_id)
                 {
-                    client_exists = 1;
+                    write(users.clients[i].cfd, message, strlen(message));
                     break;
                 }
-            }
-            // Jeśli klient istnieje, wysyłamy mu wiadomość
-            if (client_exists)
-            {
-                for (size_t i = 0; i < users.counter; ++i)
-                {
-                    if (users.clients[i].id == receiver_id)
-                    {
-                        write(users.clients[i].cfd, message, strlen(message));
-                        break;
-                    }
-                }
-            }
-            // Jeśli klient nie istnieje, wysyłamy wiadomość o błędzie
-            else
-            {
-                char error_msg[256];
-                sprintf(error_msg, "No such user: %d\n", receiver_id);
-                write(cfd, error_msg, strlen(error_msg));
             }
         }
     }
@@ -173,3 +176,4 @@ int main()
 
     return 0;
 }
+//gdzie on wypisuje wiadomosci ktore pisze
