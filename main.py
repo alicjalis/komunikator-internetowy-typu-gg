@@ -10,6 +10,9 @@ def connect_to_server(hostname, port):
 def send_username(client_socket, username):
    client_socket.sendall(username.encode('utf-8'))
 
+def send_id(client_socket, receiver_id):
+   client_socket.sendall(receiver_id.encode('utf-8'))
+
 def receive_id(client_socket):
   id_buffer = bytearray()
   while True:
@@ -19,9 +22,8 @@ def receive_id(client_socket):
      id_buffer += chunk
   return id_buffer.decode('utf-8')
 
-def send_message(client_socket, receiver_id, message):
-   command = f"send_message {receiver_id} {message}\n"
-   client_socket.sendall(command.encode('utf-8'))
+def send_message(client_socket, message):
+   client_socket.sendall(message.encode('utf-8'))
 
 def receive_message(client_socket):
    msg_buffer = bytearray()
@@ -33,20 +35,6 @@ def receive_message(client_socket):
    return msg_buffer.decode('utf-8')
 
 
-class ClientThread(threading.Thread):
-   def __init__(self, client_socket):
-       threading.Thread.__init__(self)
-       self.client_socket = client_socket
-
-   def run(self):
-       while True:
-           try:
-               msg = receive_message(self.client_socket)
-               print("Received message: ", msg)
-           except Exception as e:
-               print("Error receiving message: ", e)
-               break
-
 def main():
    hostname = "192.168.80.130"
    port = 1234
@@ -56,21 +44,31 @@ def main():
    send_username(client_socket, username)
    print("Your id is: ", receive_id(client_socket))
 
-   client_thread = ClientThread(client_socket)
-   client_thread.start()
+   #client_thread = ClientThread(client_socket)
+   #client_thread.start()
 
    while True:
        receiver_id = input("Enter the id of the user you want to send a message to: ")
-       send_message(client_socket, receiver_id, "")
+       print("receiver id to",receiver_id)
+       send_id(client_socket, receiver_id)
+       print("send message")
        time.sleep(0.1)  # Opóźnienie 0.1 sekundy
        msg = receive_message(client_socket)
+       print(msg);
        if msg.startswith("No such user:"):
-           print(msg)
+           print("if)")
+           print("msg: ", msg)
            continue
-       else:
+           #break
+       elif msg.startswith("You can send a message"):
+           print("else")
            message = input("Enter your message: ")
-           send_message(client_socket, receiver_id, message)
+           send_message(client_socket, message)
            break
+       else:
+           print("Received message: ", msg)
+
+
 
 
 if __name__ == "__main__":
