@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define MAX_USERS 15
 #define MAX_USERNAME_LENGTH 20
@@ -17,6 +18,7 @@ struct cln
     struct sockaddr_in caddr;
     char nickname[MAX_USERNAME_LENGTH];
     int id;
+    bool got_message;
 };
 
 // Struktura przechowująca informacje o użytkownikach
@@ -31,15 +33,14 @@ struct users users;
 pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Funkcja dodająca użytkownika do globalnej listy użytkowników
-void addUser(struct users *userList, const char *usernames)
+void addUser(struct users *user_list, const char *usernames)
 {
     pthread_mutex_lock(&users_mutex);
-    if (userList->counter < MAX_USERS)
+    if (user_list->counter < MAX_USERS)
     {
-        strcpy(userList->clients[userList->counter].nickname, usernames);
-        userList->counter++;
-        userList->clients[userList->counter].id = userList->counter;
-        printf("counter w adduser: %d\n", userList->counter);
+        strcpy(user_list->clients[user_list->counter].nickname, usernames);
+        user_list->counter++;
+        user_list->clients[user_list->counter].id = user_list->counter;
     }
     else
     {
@@ -73,9 +74,7 @@ void *cthread(void *arg)
     client_info->nickname[username_rc] = '\0';
     printf("Client connected: %s\n", client_info->nickname);
     addUser(&users, client_info->nickname);
-    printf("niby dodalo\n");
     client_info->id = users.counter;
-    printf("users counter w void: %d\n", users.counter);
     char id_buffer[10];
     sprintf(id_buffer, "%d\n", client_info->id);
     write(cfd, id_buffer, strlen(id_buffer));
@@ -98,9 +97,7 @@ void *cthread(void *arg)
         int client_exists = 0;
         for (int i = 1; i <= users.counter; ++i)
         {
-            printf("wartosc i: %d\n", i);
-            printf("%d\n", users.clients[i].id);
-            printf("%d\n", received_id);
+
             if (users.clients[i].id == received_id)
             {
                 char send_msg[256];
