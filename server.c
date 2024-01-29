@@ -22,7 +22,7 @@ struct cln
 // Struktura przechowująca informacje o użytkownikach
 struct users
 {
-    size_t counter;
+    int counter;
     struct cln clients[MAX_USERS];
 };
 struct users users;
@@ -37,8 +37,9 @@ void addUser(struct users *userList, const char *usernames)
     if (userList->counter < MAX_USERS)
     {
         strcpy(userList->clients[userList->counter].nickname, usernames);
-        userList->clients[userList->counter].id = userList->counter;
         userList->counter++;
+        userList->clients[userList->counter].id = userList->counter;
+        printf("counter w adduser: %d\n", userList->counter);
     }
     else
     {
@@ -66,7 +67,7 @@ void *cthread(void *arg)
 {
     struct cln *client_info = (struct cln *)arg;
     int cfd = client_info->cfd;
-    char buf[256];
+    char receiver_id[256];
 
     ssize_t username_rc = read(cfd, client_info->nickname, sizeof(client_info->nickname) - 1);
     client_info->nickname[username_rc] = '\0';
@@ -74,6 +75,7 @@ void *cthread(void *arg)
     addUser(&users, client_info->nickname);
     printf("niby dodalo\n");
     client_info->id = users.counter;
+    printf("users counter w void: %d\n", users.counter);
     char id_buffer[10];
     sprintf(id_buffer, "%d\n", client_info->id);
     write(cfd, id_buffer, strlen(id_buffer));
@@ -81,7 +83,7 @@ void *cthread(void *arg)
     while (1)
     {
         printf("iteracja while\n");
-        ssize_t rc = read(cfd, buf, sizeof(buf));
+        ssize_t rc = read(cfd, receiver_id, sizeof(receiver_id));
         if (rc <= 0)
         {
             // Błąd lub zamknięcie połączenia, wyjście z pętli
@@ -89,13 +91,16 @@ void *cthread(void *arg)
             break;
         }
 
-        buf[rc] = '\0';
-        int received_id = atoi(buf); // Konwertowanie otrzymanego ciągu na int
+        receiver_id[rc] = '\0';
+        int received_id = atoi(receiver_id); // Konwertowanie otrzymanego ciągu na int
 
         // Sprawdzanie, czy klient o danym id istnieje
         int client_exists = 0;
-        for (size_t i = 0; i < users.counter; ++i)
+        for (int i = 1; i <= users.counter; ++i)
         {
+            printf("wartosc i: %d\n", i);
+            printf("%d\n", users.clients[i].id);
+            printf("%d\n", received_id);
             if (users.clients[i].id == received_id)
             {
                 char send_msg[256];
@@ -105,9 +110,10 @@ void *cthread(void *arg)
                 client_exists = 1;
                 break;
             }
+            //dodac sprawdzenie czy klient nie jest samym soba
         }
 
-        if (!client_exists)
+        if (client_exists == 0)
         {
             printf("No such user: %d\n", received_id);
             char error_msg[256];
@@ -131,6 +137,7 @@ void *cthread(void *arg)
             // Wysyłanie wiadomości do odpowiedniego klienta
             for (size_t i = 0; i < users.counter; ++i)
             {
+
                 if (users.clients[i].id == received_id)
                 {
                     write(users.clients[i].cfd, message, strlen(message));
@@ -176,4 +183,4 @@ int main()
 
     return 0;
 }
-//gdzie on wypisuje wiadomosci ktore pisze
+// gdzie on wypisuje wiadomosci ktore pisze
