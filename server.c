@@ -36,6 +36,7 @@ pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 void addUser(struct users *user_list, const char *usernames)
 {
     pthread_mutex_lock(&users_mutex);
+    // tu jeszcze sprawdzenie strcpy czy juz jest uzytkownik i jezeli jest to mu zostawia takie same id
     if (user_list->counter < MAX_USERS)
     {
         strcpy(user_list->clients[user_list->counter].nickname, usernames);
@@ -122,6 +123,9 @@ void *cthread(void *arg)
         {
             char message[256];
             ssize_t msg_length = read(cfd, message, sizeof(message) - 1);
+            // tablica tablic, 10 wiadomosci w tablicy statycznej 10* 256
+            // wektor
+            // kolejka, bufor cykliczny
             if (msg_length <= 0)
             {
                 // Błąd lub zamknięcie połączenia, wyjście z pętli
@@ -144,7 +148,7 @@ void *cthread(void *arg)
         }
     }
     // Zamknięcie socketu klienta
-    // close(cfd);
+    close(cfd);
     free(client_info);
 
     return NULL;
@@ -181,3 +185,4 @@ int main()
     return 0;
 }
 // gdzie on wypisuje wiadomosci ktore pisze
+//moze albo wyslac wiadomosc albo sprawdzic czy sa jakies wiadomosci dla niego, gdzies trzeba zapisywac ze do tego id jest ta wiadomosc i zrobic funkcje ktora wysyla wszystkie wiadomosci w loopie 
