@@ -46,6 +46,7 @@ def main():
 
    #client_thread = ClientThread(client_socket)
    #client_thread.start()
+   print("Choose what you want to do: \n1 - send a message\n2 - check if you have any messages\n")
 
    while True:
        receiver_id = input("Enter the id of the user you want to send a message to: ")
