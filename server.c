@@ -40,8 +40,8 @@ void addUser(struct users *user_list, const char *usernames)
     if (user_list->counter < MAX_USERS)
     {
         strcpy(user_list->clients[user_list->counter].nickname, usernames);
-        user_list->counter++;
         user_list->clients[user_list->counter].id = user_list->counter;
+        user_list->counter++;
     }
     else
     {
@@ -74,11 +74,36 @@ void *cthread(void *arg)
     ssize_t username_rc = read(cfd, client_info->nickname, sizeof(client_info->nickname) - 1);
     client_info->nickname[username_rc] = '\0';
     printf("Client connected: %s\n", client_info->nickname);
-    addUser(&users, client_info->nickname);
-    client_info->id = users.counter;
-    char id_buffer[10];
-    sprintf(id_buffer, "%d\n", client_info->id);
-    write(cfd, id_buffer, strlen(id_buffer));
+    // Sprawdź, czy użytkownik już istnieje na liście
+    int existing_user_index = -1;
+    for (int i = 0; i < users.counter; ++i)
+    {
+        if (strcmp(users.clients[i].nickname, client_info->nickname) == 0)
+        {
+            existing_user_index = i;
+            break;
+        }
+    }
+
+    // Jeśli użytkownik istnieje, zaktualizuj jego deskryptor
+    if (existing_user_index != -1)
+    {
+        users.clients[existing_user_index].cfd = cfd;
+        // Odeślij klientowi jego istniejące id
+        char id_buffer[10];
+        sprintf(id_buffer, "%d\n", users.clients[existing_user_index].id);
+        write(cfd, id_buffer, strlen(id_buffer));
+    }
+    else
+    {
+        // Użytkownik nie istnieje, więc dodaj go do listy
+        client_info->id = users.counter; // Nowe id
+        addUser(&users, client_info->nickname);
+        // Odeślij klientowi jego nowe id
+        char id_buffer[10];
+        sprintf(id_buffer, "%d\n", client_info->id);
+        write(cfd, id_buffer, strlen(id_buffer));
+    }
 
     while (1)
     {
@@ -96,7 +121,7 @@ void *cthread(void *arg)
 
         // Sprawdzanie, czy klient o danym id istnieje
         int client_exists = 0;
-        for (int i = 1; i <= users.counter; ++i)
+        for (int i = 0; i < users.counter; ++i)
         {
 
             if (users.clients[i].id == received_id)
@@ -108,7 +133,7 @@ void *cthread(void *arg)
                 client_exists = 1;
                 break;
             }
-            //dodac sprawdzenie czy klient nie jest samym soba
+            // dodac sprawdzenie czy klient nie jest samym soba
         }
 
         if (client_exists == 0)
@@ -184,5 +209,3 @@ int main()
 
     return 0;
 }
-// gdzie on wypisuje wiadomosci ktore pisze
-//moze albo wyslac wiadomosc albo sprawdzic czy sa jakies wiadomosci dla niego, gdzies trzeba zapisywac ze do tego id jest ta wiadomosc i zrobic funkcje ktora wysyla wszystkie wiadomosci w loopie 
