@@ -44,7 +44,7 @@ struct users users;
 pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Funkcja dodająca użytkownika do globalnej listy użytkowników
-void addUser(struct users *user_list, const char *usernames)
+void add_user(struct users *user_list, const char *usernames)
 {
     pthread_mutex_lock(&users_mutex);
     if (user_list->counter < MAX_USERS)
@@ -61,7 +61,7 @@ void addUser(struct users *user_list, const char *usernames)
 }
 
 // Funkcja przechowująca odebraną wiadomość u odbiorcy
-void storeMessage(struct cln *receiver, const char *sender, const char *message)
+void store_message(struct cln *receiver, const char *sender, const char *message)
 {
     if (receiver->messages_count < MAX_MESSAGES)
     {
@@ -79,30 +79,30 @@ void storeMessage(struct cln *receiver, const char *sender, const char *message)
 }
 
 // Funkcja wysyłająca wszystkie wiadomości do klienta
-void sendAllMessages(struct cln receiver)
+void send_all_messages(struct cln receiver)
 {
     char send_msg[300];
-    //printf("Twoja ilosc odebranych wiadomosci: %d\n", receiver.messages_count);
-    
+    // printf("Twoja ilosc odebranych wiadomosci: %d\n", receiver.messages_count);
+
     for (int i = 0; i < receiver.messages_count; i++)
     {
         snprintf(send_msg, sizeof(send_msg), "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
         write(receiver.cfd, send_msg, strlen(send_msg));
     }
+
     // Po wysłaniu wszystkich wiadomości wysyłamy pustą wiadomość jako sygnał kończący
-    write(receiver.cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
+    //write(receiver.cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
     receiver.messages_count = 0; // Resetujemy liczbę wiadomości po wysłaniu
 }
 
-// Funkcja wyświetlająca wszystkie nazwy zalogowanych użytkowników
-void showAllUsernames(struct cln *client)
+void show_all_usernames(struct cln *client)
 {
     char message[512];
     pthread_mutex_lock(&users_mutex);
-    sprintf(message, "All usernames:\n");
+    sprintf(message, "All usernames and IDs:\n");
     for (size_t i = 0; i < users.counter; ++i)
     {
-        sprintf(message + strlen(message), "- %s\n", users.clients[i].nickname);
+        sprintf(message + strlen(message), "- ID: %d, Username: %s\n", users.clients[i].id, users.clients[i].nickname);
     }
     pthread_mutex_unlock(&users_mutex);
     write(client->cfd, message, strlen(message));
@@ -137,16 +137,18 @@ void *cthread(void *arg)
         char id_buffer[10];
         sprintf(id_buffer, "%d\n", users.clients[existing_user_index].id);
         write(cfd, id_buffer, strlen(id_buffer));
+        show_all_usernames(client_info);
     }
     else
     {
         // Użytkownik nie istnieje, więc dodaj go do listy
         client_info->id = users.counter; // Nowe id
-        addUser(&users, client_info->nickname);
+        add_user(&users, client_info->nickname);
         // Odeślij klientowi jego nowe id
         char id_buffer[10];
         sprintf(id_buffer, "%d\n", client_info->id);
         write(cfd, id_buffer, strlen(id_buffer));
+        show_all_usernames(client_info);
     }
     int id = client_info->id;
     while (1)
@@ -163,7 +165,7 @@ void *cthread(void *arg)
         choice[msg_length] = '\0';
         if (strcmp(choice, "1") == 0)
         {
-            
+
             ssize_t rc = read(cfd, receiver_id, sizeof(receiver_id));
             if (rc <= 0)
             {
@@ -189,7 +191,6 @@ void *cthread(void *arg)
                     client_exists = 1;
                     break;
                 }
-                
             }
 
             if (client_exists == 0)
@@ -223,10 +224,10 @@ void *cthread(void *arg)
 
                     if (users.clients[i].id == received_id)
                     {
-                        storeMessage(&users.clients[i], sender, message);
+                        store_message(&users.clients[i], sender, message);
                         int test = users.clients[i].messages_count;
                         printf("Ilosc wiadomosci: %d\n", test);
-                        
+
                         // char formatted_message[MAX_MESSAGE_LENGTH];
                         // sprintf(formatted_message, "%s: %s", sender, message);
                         // write(users.clients[i].cfd, formatted_message, strlen(formatted_message));
@@ -237,7 +238,7 @@ void *cthread(void *arg)
         }
         else if (strcmp(choice, "2") == 0)
         {
-            sendAllMessages(users.clients[id]);
+            send_all_messages(users.clients[id]);
         }
         else
         {
