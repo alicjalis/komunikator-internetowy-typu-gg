@@ -2,21 +2,21 @@ import socket
 import threading
 import time
 
-
+# Funkcja łącząca się z serwerem
 def connect_to_server(hostname, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((hostname, port))
     return client_socket
 
-
+# Funkcja wysyłająca nazwę użytkownika do serwera
 def send_username(client_socket, username):
     client_socket.sendall(username.encode('utf-8'))
 
-
+# Funkcja wysyłająca identyfikator odbiorcy do serwera
 def send_id(client_socket, receiver_id):
     client_socket.sendall(receiver_id.encode('utf-8'))
 
-
+# Funkcja odbierająca identyfikator od serwera
 def receive_id(client_socket):
     id_buffer = bytearray()
     while True:
@@ -26,11 +26,11 @@ def receive_id(client_socket):
         id_buffer += chunk
     return id_buffer.decode('utf-8')
 
-
+# Funkcja wysyłająca wiadomość do serwera
 def send_message(client_socket, message):
     client_socket.sendall(message.encode('utf-8'))
 
-
+# Funkcja odbierająca wiadomość od serwera
 def receive_message(client_socket):
     msg_buffer = bytearray()
     while True:
@@ -40,19 +40,19 @@ def receive_message(client_socket):
         msg_buffer += chunk
     return msg_buffer.decode('utf-8')
 
-
+# Funkcja odbierająca wszystkie wiadomości od serwera
 def receive_all_messages(client_socket):
     messages = []
     while True:
         msg = receive_message(client_socket)
         print(msg)
-        if msg == "END_OF_MESSAGES":
+        if not msg:
             break
         messages.append(msg)
         print(messages)
     return messages
 
-
+# Główna funkcja programu klienta
 def main():
     hostname = "192.168.80.130"
     port = 1234
@@ -61,6 +61,8 @@ def main():
     client_socket = connect_to_server(hostname, port)
     send_username(client_socket, username)
     print("Your id is: ", receive_id(client_socket))
+    usernames_and_ids_msg = client_socket.recv(4096).decode('utf-8')
+    print(usernames_and_ids_msg)
 
     # client_thread = ClientThread(client_socket)
     # client_thread.start()
