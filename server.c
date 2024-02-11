@@ -69,7 +69,9 @@ void storeMessage(struct cln *receiver, const char *sender, const char *message)
         strcpy(receiver->messages[receiver->messages_count].content, message);
         printf("wiadomosc: %s\n", message);
         printf("sender: %s\n", sender);
+        printf("receiver: %s\n", receiver->nickname);
         receiver->messages_count++;
+        printf("wiadomosci w storemessage jest: %d\n", receiver->messages_count);
     }
     else
     {
@@ -78,19 +80,23 @@ void storeMessage(struct cln *receiver, const char *sender, const char *message)
 }
 
 // Funkcja wysyłająca wszystkie wiadomości do klienta
-void sendAllMessages(struct cln *receiver)
+void sendAllMessages(struct cln receiver)
 {
     char send_msg[300];
-    for (int i = 0; i < receiver->messages_count; ++i)
+    int messagess_num;
+    printf("wiadomosci jest:%d\n",receiver.messages_count);
+    for (int i = 0; i < receiver.messages_count; ++i)
     {
+        printf("weszles tu czy nie weszles\n");
         // Tworzymy wiadomość w formacie "nickname nadawcy: wiadomość od nadawcy"
-        snprintf(send_msg, sizeof(send_msg), "%s: %s\n", receiver->messages[i].sender, receiver->messages[i].content);
+        snprintf(send_msg, sizeof(send_msg), "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
         // Wysyłamy tę wiadomość do odbiorcy
-        write(receiver->cfd, send_msg, strlen(send_msg));
+        write(receiver.cfd, send_msg, strlen(send_msg));
+        printf("%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
     }
     // Po wysłaniu wszystkich wiadomości wysyłamy pustą wiadomość jako sygnał kończący
-    write(receiver->cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
-    receiver->messages_count = 0; // Resetujemy liczbę wiadomości po wysłaniu
+    write(receiver.cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
+    receiver.messages_count = 0; // Resetujemy liczbę wiadomości po wysłaniu
 }
 
 // Funkcja wyświetlająca wszystkie nazwy zalogowanych użytkowników
@@ -147,6 +153,7 @@ void *cthread(void *arg)
         sprintf(id_buffer, "%d\n", client_info->id);
         write(cfd, id_buffer, strlen(id_buffer));
     }
+    int id = client_info->id;
 
     while (1)
     {
@@ -234,7 +241,9 @@ void *cthread(void *arg)
         }
         else if (strcmp(choice, "2") == 0)
         {
-            sendAllMessages(client_info);
+            printf("wybur dostanie wiadomosci przed\n");
+            sendAllMessages(users.clients[id]);
+            printf("wybur dostanie wiadomosci po\n");
         }
         else
         {
