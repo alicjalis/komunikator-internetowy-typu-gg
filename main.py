@@ -38,7 +38,7 @@ def receive_all_messages(client_socket):
     messages = []
     while True:
         msg = receive_message(client_socket)
-        if msg == "END_OF_MESSAGES\n":
+        if msg == "END_OF_MESSAGES":
             break
         messages.append(msg)
     return messages
