@@ -71,7 +71,6 @@ void storeMessage(struct cln *receiver, const char *sender, const char *message)
         printf("sender: %s\n", sender);
         printf("receiver: %s\n", receiver->nickname);
         receiver->messages_count++;
-        printf("wiadomosci w storemessage jest: %d\n", receiver->messages_count);
     }
     else
     {
@@ -83,16 +82,12 @@ void storeMessage(struct cln *receiver, const char *sender, const char *message)
 void sendAllMessages(struct cln receiver)
 {
     char send_msg[300];
-    int messagess_num;
-    printf("wiadomosci jest:%d\n",receiver.messages_count);
-    for (int i = 0; i < receiver.messages_count; ++i)
+    //printf("Twoja ilosc odebranych wiadomosci: %d\n", receiver.messages_count);
+    
+    for (int i = 0; i < receiver.messages_count; i++)
     {
-        printf("weszles tu czy nie weszles\n");
-        // Tworzymy wiadomość w formacie "nickname nadawcy: wiadomość od nadawcy"
         snprintf(send_msg, sizeof(send_msg), "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
-        // Wysyłamy tę wiadomość do odbiorcy
         write(receiver.cfd, send_msg, strlen(send_msg));
-        printf("%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
     }
     // Po wysłaniu wszystkich wiadomości wysyłamy pustą wiadomość jako sygnał kończący
     write(receiver.cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
@@ -154,7 +149,6 @@ void *cthread(void *arg)
         write(cfd, id_buffer, strlen(id_buffer));
     }
     int id = client_info->id;
-
     while (1)
     {
 
@@ -169,7 +163,7 @@ void *cthread(void *arg)
         choice[msg_length] = '\0';
         if (strcmp(choice, "1") == 0)
         {
-            printf("iteracja while\n");
+            
             ssize_t rc = read(cfd, receiver_id, sizeof(receiver_id));
             if (rc <= 0)
             {
@@ -195,7 +189,7 @@ void *cthread(void *arg)
                     client_exists = 1;
                     break;
                 }
-                // dodac sprawdzenie czy klient nie jest samym soba
+                
             }
 
             if (client_exists == 0)
@@ -230,7 +224,9 @@ void *cthread(void *arg)
                     if (users.clients[i].id == received_id)
                     {
                         storeMessage(&users.clients[i], sender, message);
-                        // Dodajemy informację o nadawcy do wiadomości i wysyłamy do odbiorcy
+                        int test = users.clients[i].messages_count;
+                        printf("Ilosc wiadomosci: %d\n", test);
+                        
                         // char formatted_message[MAX_MESSAGE_LENGTH];
                         // sprintf(formatted_message, "%s: %s", sender, message);
                         // write(users.clients[i].cfd, formatted_message, strlen(formatted_message));
@@ -241,9 +237,7 @@ void *cthread(void *arg)
         }
         else if (strcmp(choice, "2") == 0)
         {
-            printf("wybur dostanie wiadomosci przed\n");
             sendAllMessages(users.clients[id]);
-            printf("wybur dostanie wiadomosci po\n");
         }
         else
         {
@@ -268,7 +262,6 @@ int main()
 
     struct sockaddr_in saddr;
     saddr.sin_family = AF_INET;
-    saddr.sin_addr.s_addr = INADDR_ANY;
     saddr.sin_port = htons(1234);
 
     sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -285,7 +278,7 @@ int main()
         pthread_detach(tid);
     }
 
-    // Zamkniecie socketu servera
+    // Zamkniecie socketu serwera
     close(sfd);
 
     return 0;
