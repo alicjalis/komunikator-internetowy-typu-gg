@@ -1,22 +1,18 @@
+import tkinter as tk
 import socket
 import threading
-import time
 
-# Funkcja łącząca się z serwerem
+
 def connect_to_server(hostname, port):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((hostname, port))
     return client_socket
 
-# Funkcja wysyłająca nazwę użytkownika do serwera
+
 def send_username(client_socket, username):
     client_socket.sendall(username.encode('utf-8'))
 
-# Funkcja wysyłająca identyfikator odbiorcy do serwera
-def send_id(client_socket, receiver_id):
-    client_socket.sendall(receiver_id.encode('utf-8'))
 
-# Funkcja odbierająca identyfikator od serwera
 def receive_id(client_socket):
     id_buffer = bytearray()
     while True:
@@ -26,11 +22,15 @@ def receive_id(client_socket):
         id_buffer += chunk
     return id_buffer.decode('utf-8')
 
-# Funkcja wysyłająca wiadomość do serwera
-def send_message(client_socket, message):
-    client_socket.sendall(message.encode('utf-8'))
 
-# Funkcja odbierająca wiadomość od serwera
+def send_choice(client_socket, choice):
+    client_socket.sendall(choice.encode('utf-8'))
+
+
+def send_id(client_socket, receiver_id):
+    client_socket.sendall(receiver_id.encode('utf-8'))
+
+
 def receive_message(client_socket):
     msg_buffer = bytearray()
     while True:
@@ -40,59 +40,103 @@ def receive_message(client_socket):
         msg_buffer += chunk
     return msg_buffer.decode('utf-8')
 
-# Funkcja odbierająca wszystkie wiadomości od serwera
+
 def receive_all_messages(client_socket):
     messages = []
     while True:
         msg = receive_message(client_socket)
-        print(msg)
         if not msg:
             break
         messages.append(msg)
-        print(messages)
     return messages
 
-# Główna funkcja programu klienta
+
 def main():
-    hostname = "192.168.80.130"
-    port = 1234
-    username = input("Enter your username: ")
+    def connect():
+        hostname = "192.168.80.130"
+        port = 1234
+        username = nickname_entry.get()
+        client_socket = connect_to_server(hostname, port)
+        send_username(client_socket, username)
+        # Ukrycie elementów GUI
+        nickname_label.pack_forget()
+        nickname_entry.pack_forget()
+        connect_button.pack_forget()
 
-    client_socket = connect_to_server(hostname, port)
-    send_username(client_socket, username)
-    print("Your id is: ", receive_id(client_socket))
-    usernames_and_ids_msg = client_socket.recv(4096).decode('utf-8')
-    print(usernames_and_ids_msg)
+        # Ustawienie id użytkownika w odpowiednim miejscu GUI
+        your_id_is_label = tk.Label(root, text="Your id is: ")
+        your_id_is_label.pack()
 
-    # client_thread = ClientThread(client_socket)
-    # client_thread.start()
-    print("Choose what you want to do: \n1 - send a message\n2 - check if you have any messages\n")
+        # Odbieranie id użytkownika
+        user_id = receive_id(client_socket)
 
-    while True:
-        choice = input("Enter your choice: ")
-        client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
-        if choice == "1":
-            receiver_id = input("Enter the id of the user you want to send a message to: ")
-            send_id(client_socket, receiver_id)
-            time.sleep(0.1)  # Opóźnienie 0.1 sekundy
-            msg = receive_message(client_socket)
-            if msg.startswith("No such user:"):
-                print(msg)
-                continue
-            elif msg.startswith("You can send a message"):
-                message = input("Enter your message: ")
-                send_message(client_socket, message)
-                continue
-        elif choice == "2":
+        # Ustawienie id użytkownika w odpowiednim miejscu GUI
+        user_info_label = tk.Label(root, text=user_id)
+        user_info_label.pack()
+
+
+        # Odbieranie wiadomości z serwera dotyczącej użytkowników
+        usernames_and_ids_msg = client_socket.recv(4096).decode('utf-8')
+        usernames_and_ids_label.config(text=usernames_and_ids_msg)
+
+
+
+        # Ustawienie opcji wysyłania wiadomości i sprawdzania wiadomości
+        choice_label.pack()
+        send_message_button.pack()
+        check_messages_button.pack()
+
+        # Uruchomienie wątków do odbierania danych od serwera
+        threading.Thread(target=receive_messages_thread, args=(client_socket,)).start()
+        threading.Thread(target=receive_id_thread, args=(client_socket,)).start()
+
+    def receive_messages_thread(client_socket):
+        while True:
             messages = receive_all_messages(client_socket)
             if messages:
-                print("Received messages:")
-                for msg in messages:
-                    print(msg)
+                messages_text = "\n".join(messages)
             else:
-                print("No messages")
-        else:
-            print("Invalid choice")
+                messages_text = "No messages"
+            message_list.config(text=messages_text)
+
+    def receive_id_thread(client_socket):
+        usernames_and_ids_msg = client_socket.recv(4096).decode('utf-8')
+        usernames_and_ids_label.config(text=usernames_and_ids_msg)
+
+    root = tk.Tk()
+    root.title("Chat Client")
+    root.geometry("400x300")
+
+    nickname_label = tk.Label(root, text="Enter your nickname:")
+    nickname_label.pack()
+
+    nickname_entry = tk.Entry(root)
+    nickname_entry.pack()
+
+    connect_button = tk.Button(root, text="Connect", command=connect)
+    connect_button.pack()
+
+
+
+
+    usernames_and_ids_label = tk.Label(root, text="")
+    usernames_and_ids_label.pack()
+
+    choice_label = tk.Label(root, text="")
+    send_message_button = tk.Button(root, text="Send a message")
+    check_messages_button = tk.Button(root, text="Check if you have any messages")
+
+    input_label = tk.Label(root, text="Receiver ID:")
+    input_entry = tk.Entry(root)
+
+    message_label = tk.Label(root, text="Message:")
+    message_entry = tk.Entry(root)
+
+    message_button = tk.Button(root, text="Send")
+
+    message_list = tk.Label(root, text="")
+
+    root.mainloop()
 
 
 if __name__ == "__main__":
