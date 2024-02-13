@@ -106,15 +106,38 @@ def main():
             receiver_id = receiver_id_entry.get()
             send_id(client_socket, receiver_id)
 
+        def receive_thread():
+            msg = receive_message(client_socket)
+            if msg.startswith("No such user:"):
+                receiver_id_label.pack_forget()
+                receiver_id_entry.pack_forget()
+                receiver_id_button.pack_forget()
+                message_label = tk.Label(root, text=msg)
+                message_label.pack()
+            elif msg.startswith("You can send a message"):
+                receiver_id_label.pack_forget()
+                receiver_id_entry.pack_forget()
+                receiver_id_button.pack_forget()
+                can_send_label = tk.Label(root, text="Enter a message")
+                can_send_label.pack()
+                can_send_entry = tk.Entry(root)
+                can_send_entry.pack()
+                def send_message_to_client():
+                    message_entry = can_send_entry.get()
+                    send_message(client_socket, message_entry)
+
+                send_button = tk.Button(root, text="Enter", command=send_message_to_client)
+                send_button.pack()
+
+        receive_thread = threading.Thread(target=receive_thread)
+        receive_thread.start()
+
         receiver_id_button = tk.Button(root, text="Enter", command=choose_receiver_id)
         receiver_id_button.pack()
-        msg = receive_message(client_socket)
-        if msg.startswith("No such user:"):
-            receiver_id_label.pack_forget()
-            receiver_id_entry.pack_forget()
-            receiver_id_button.pack_forget()
-            message_label = tk.Label(root, text=msg)
-            message_label.pack()
+
+
+
+
 
     def receive_messages_thread(client_socket):
         while True:
