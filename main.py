@@ -1,9 +1,11 @@
 import tkinter as tk
 import socket
 import threading
+import time
 
 
 def connect_to_server(hostname, port):
+    global client_socket
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect((hostname, port))
     return client_socket
@@ -29,6 +31,9 @@ def send_choice(client_socket, choice):
 
 def send_id(client_socket, receiver_id):
     client_socket.sendall(receiver_id.encode('utf-8'))
+
+def send_message(client_socket, message):
+    client_socket.sendall(message.encode('utf-8'))
 
 
 def receive_message(client_socket):
@@ -80,15 +85,36 @@ def main():
         usernames_and_ids_label.config(text=usernames_and_ids_msg)
 
 
-
         # Ustawienie opcji wysyłania wiadomości i sprawdzania wiadomości
         choice_label.pack()
         send_message_button.pack()
         check_messages_button.pack()
 
-        # Uruchomienie wątków do odbierania danych od serwera
-        threading.Thread(target=receive_messages_thread, args=(client_socket,)).start()
-        threading.Thread(target=receive_id_thread, args=(client_socket,)).start()
+
+
+    def send_a_message():
+        choice_label.pack_forget()
+        send_message_button.pack_forget()
+        check_messages_button.pack_forget()
+        choice = "1"
+        client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
+        receiver_id_label = tk.Label(root, text="Enter the id of the user you want to send a message to: ")
+        receiver_id_label.pack()
+        receiver_id_entry = tk.Entry(root)
+        receiver_id_entry.pack()
+        def choose_receiver_id():
+            receiver_id = receiver_id_entry.get()
+            send_id(client_socket, receiver_id)
+
+        receiver_id_button = tk.Button(root, text="Enter", command=choose_receiver_id)
+        receiver_id_button.pack()
+        msg = receive_message(client_socket)
+        if msg.startswith("No such user:"):
+            receiver_id_label.pack_forget()
+            receiver_id_entry.pack_forget()
+            receiver_id_button.pack_forget()
+            message_label = tk.Label(root, text=msg)
+            message_label.pack()
 
     def receive_messages_thread(client_socket):
         while True:
@@ -116,23 +142,20 @@ def main():
     connect_button = tk.Button(root, text="Connect", command=connect)
     connect_button.pack()
 
-
-
-
     usernames_and_ids_label = tk.Label(root, text="")
     usernames_and_ids_label.pack()
 
     choice_label = tk.Label(root, text="")
-    send_message_button = tk.Button(root, text="Send a message")
+    send_message_button = tk.Button(root, text="Send a message", command=send_a_message)
     check_messages_button = tk.Button(root, text="Check if you have any messages")
 
     input_label = tk.Label(root, text="Receiver ID:")
     input_entry = tk.Entry(root)
 
-    message_label = tk.Label(root, text="Message:")
-    message_entry = tk.Entry(root)
-
-    message_button = tk.Button(root, text="Send")
+    # message_label = tk.Label(root, text="Message:")
+    # message_entry = tk.Entry(root)
+    #
+    # message_button = tk.Button(root, text="Send")
 
     message_list = tk.Label(root, text="")
 
