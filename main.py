@@ -90,6 +90,12 @@ def main():
         send_message_button.pack()
         check_messages_button.pack()
 
+    def return_to_choice():
+        choice_label.pack()
+        send_message_button.pack()
+        check_messages_button.pack()
+
+
 
 
     def send_a_message():
@@ -114,6 +120,9 @@ def main():
                 receiver_id_button.pack_forget()
                 message_label = tk.Label(root, text=msg)
                 message_label.pack()
+                send_message_button.pack()
+                return_button= tk.Button(root, text="Return", command=return_to_choice)
+                return_button.pack()
             elif msg.startswith("You can send a message"):
                 receiver_id_label.pack_forget()
                 receiver_id_entry.pack_forget()
@@ -122,9 +131,18 @@ def main():
                 can_send_label.pack()
                 can_send_entry = tk.Entry(root)
                 can_send_entry.pack()
+
                 def send_message_to_client():
                     message_entry = can_send_entry.get()
                     send_message(client_socket, message_entry)
+                    message_sent_label= tk.Label(root, text="Message sent")
+                    message_sent_label.pack()
+                    # Ukrywanie elementów po wysłaniu wiadomości
+                    can_send_label.pack_forget()
+                    can_send_entry.pack_forget()
+                    send_button.pack_forget()
+                    return_to_choice()
+
 
                 send_button = tk.Button(root, text="Enter", command=send_message_to_client)
                 send_button.pack()
