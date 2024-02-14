@@ -40,6 +40,15 @@ def receive_message(client_socket):
         msg_buffer += chunk
     return msg_buffer.decode('utf-8')
 
+def receive_messages(client_socket):
+    msg_buffer = bytearray()
+    while True:
+        chunk = client_socket.recv(1)
+        if not chunk:  # Jeśli chunk jest pusty, oznacza to koniec danych
+            break
+        msg_buffer += chunk
+    return msg_buffer.decode('utf-8')
+
 # Funkcja odbierająca wszystkie wiadomości od serwera
 def receive_all_messages(client_socket):
     messages = []
@@ -51,6 +60,16 @@ def receive_all_messages(client_socket):
         messages.append(msg)
         print(messages)
     return messages
+
+def message_receiver(client_socket):
+    while getattr(threading.current_thread(), "running", True):
+        message = receive_message(client_socket)
+        if message:
+            print("Received message:", message)
+        else:
+            print("No messages received")
+        break  # Zakończ pętlę po odebraniu jednej wiadomości
+
 
 # Główna funkcja programu klienta
 def main():
@@ -84,13 +103,13 @@ def main():
                 send_message(client_socket, message)
                 continue
         elif choice == "2":
-            messages = receive_all_messages(client_socket)
-            if messages:
-                print("Received messages:")
-                for msg in messages:
-                    print(msg)
-            else:
-                print("No messages")
+            messages = client_socket.recv(4096).decode('utf-8')
+            print("Received messages:", messages)
+            messages = messages.split("\n")  # Dzielenie otrzymanej wiadomości na osobne linie
+            for msg in messages:
+                if msg:  # Sprawdź, czy wiadomość nie jest pusta
+                    sender, content = msg.split(":", 1)  # Podział na nadawcę i treść wiadomości
+                    print(f"{sender}: {content}")  # Wyświetlenie nadawcy i treści wiadomości
         else:
             print("Invalid choice")
 
