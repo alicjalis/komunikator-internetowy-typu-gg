@@ -94,10 +94,7 @@ def main():
         choice_label.pack()
         send_message_button.pack()
         check_messages_button.pack()
-
-
-
-
+    #Obsługa guzika send a message
     def send_a_message():
         choice_label.pack_forget()
         send_message_button.pack_forget()
@@ -112,6 +109,7 @@ def main():
             receiver_id = receiver_id_entry.get()
             send_id(client_socket, receiver_id)
 
+        #Odbieranie wiadomości od serwera
         def receive_thread():
             msg = receive_message(client_socket)
             if msg.startswith("No such user:"):
@@ -132,6 +130,7 @@ def main():
                 can_send_entry = tk.Entry(root)
                 can_send_entry.pack()
 
+                #Obsługa guzika enter, wysyłanie wiadomości do odbiorcy
                 def send_message_to_client():
                     message_entry = can_send_entry.get()
                     send_message(client_socket, message_entry)
@@ -153,6 +152,8 @@ def main():
         receiver_id_button = tk.Button(root, text="Enter", command=choose_receiver_id)
         receiver_id_button.pack()
 
+
+
     def check_messages():
         choice_label.pack_forget()
         send_message_button.pack_forget()
@@ -160,14 +161,22 @@ def main():
         choice = "2"
         client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
 
-        def receive_messages_thread(root):
-            messages = receive_all_messages(client_socket)
-            if messages:
-                messages_output = tk.Text(root)
-                messages_output.pack()
-                for msg in messages:
-                    messages_output.insert(tk.END, msg + "\n")
 
+    def refresh():
+        connect()
+        receive_messages_thread(root)
+
+    def receive_messages_thread(root):
+
+        refresh_button = tk.Button(root, text="Refresh", command =refresh)
+        refresh_button.pack()
+        messages = client_socket.recv(4096).decode('utf-8')
+        messages = messages.split("\n")
+        for msg in messages:
+            if msg:  # Sprawdź, czy wiadomość nie jest pusta
+                sender, content = msg.split(":", 1)  # Podział na nadawcę i treść wiadomości
+                messages_output = tk.Text(root, text=(f"{sender}: {content}"))
+                messages_output.pack()
             else:
                 no_messages_text = tk.Label(root, text="No messages")
                 no_messages_text.pack()
@@ -193,16 +202,6 @@ def main():
     choice_label = tk.Label(root, text="")
     send_message_button = tk.Button(root, text="Send a message", command=send_a_message)
     check_messages_button = tk.Button(root, text="Check if you have any messages", command = check_messages)
-
-    input_label = tk.Label(root, text="Receiver ID:")
-    input_entry = tk.Entry(root)
-
-    # message_label = tk.Label(root, text="Message:")
-    # message_entry = tk.Entry(root)
-    #
-    # message_button = tk.Button(root, text="Send")
-
-    message_list = tk.Label(root, text="")
 
     root.mainloop()
 
