@@ -153,22 +153,24 @@ def main():
         receiver_id_button = tk.Button(root, text="Enter", command=choose_receiver_id)
         receiver_id_button.pack()
 
+    def check_messages():
+        choice_label.pack_forget()
+        send_message_button.pack_forget()
+        check_messages_button.pack_forget()
+        choice = "2"
+        client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
 
-
-
-
-    def receive_messages_thread(client_socket):
-        while True:
+        def receive_messages_thread(client_socket):
             messages = receive_all_messages(client_socket)
             if messages:
                 messages_text = "\n".join(messages)
             else:
                 messages_text = "No messages"
             message_list.config(text=messages_text)
-
-    def receive_id_thread(client_socket):
-        usernames_and_ids_msg = client_socket.recv(4096).decode('utf-8')
-        usernames_and_ids_label.config(text=usernames_and_ids_msg)
+            message_text_widget.config(state=tk.NORMAL)  # Ustawienie widgetu w tryb edycji, aby móc zmienić jego zawartość
+            message_text_widget.delete("1.0", tk.END)  # Usunięcie aktualnej zawartości widgetu
+            message_text_widget.insert(tk.END, messages_text)  # Wstawienie nowej zawartości do widgetu
+            message_text_widget.config(state=tk.DISABLED)  # Ponowne ustawienie widgetu w tryb tylko do odczytu
 
     root = tk.Tk()
     root.title("Chat Client")
@@ -188,7 +190,7 @@ def main():
 
     choice_label = tk.Label(root, text="")
     send_message_button = tk.Button(root, text="Send a message", command=send_a_message)
-    check_messages_button = tk.Button(root, text="Check if you have any messages")
+    check_messages_button = tk.Button(root, text="Check if you have any messages", command = check_messages)
 
     input_label = tk.Label(root, text="Receiver ID:")
     input_entry = tk.Entry(root)
