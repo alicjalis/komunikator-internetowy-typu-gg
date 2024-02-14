@@ -50,7 +50,7 @@ def receive_all_messages(client_socket):
     messages = []
     while True:
         msg = receive_message(client_socket)
-        if not msg:
+        if msg == "END_OF_MESSAGES\n":
             break
         messages.append(msg)
     return messages
@@ -160,17 +160,19 @@ def main():
         choice = "2"
         client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
 
-        def receive_messages_thread(client_socket):
+        def receive_messages_thread(root):
             messages = receive_all_messages(client_socket)
             if messages:
-                messages_text = "\n".join(messages)
+                messages_output = tk.Text(root)
+                messages_output.pack()
+                for msg in messages:
+                    messages_output.insert(tk.END, msg + "\n")
+
             else:
-                messages_text = "No messages"
-            message_list.config(text=messages_text)
-            message_text_widget.config(state=tk.NORMAL)  # Ustawienie widgetu w tryb edycji, aby móc zmienić jego zawartość
-            message_text_widget.delete("1.0", tk.END)  # Usunięcie aktualnej zawartości widgetu
-            message_text_widget.insert(tk.END, messages_text)  # Wstawienie nowej zawartości do widgetu
-            message_text_widget.config(state=tk.DISABLED)  # Ponowne ustawienie widgetu w tryb tylko do odczytu
+                no_messages_text = tk.Label(root, text="No messages")
+                no_messages_text.pack()
+        receive_thread = threading.Thread(target=receive_messages_thread, args=(root,))
+        receive_thread.start()
 
     root = tk.Tk()
     root.title("Chat Client")
