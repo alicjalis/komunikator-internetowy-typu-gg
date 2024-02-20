@@ -81,18 +81,25 @@ void store_message(struct cln *receiver, const char *sender, const char *message
 // Funkcja wysyłająca wszystkie wiadomości do klienta
 void send_all_messages(struct cln receiver)
 {
-    char send_msg[300];
-    // printf("Twoja ilosc odebranych wiadomosci: %d\n", receiver.messages_count);
+    char send_msg[MAX_MESSAGES * (MAX_USERNAME_LENGTH + MAX_MESSAGE_LENGTH)]; // Wiadomość może zawierać wiele wiadomości
+    int msg_length = 0;                                                       // Aktualna długość wiadomości
 
-    for (int i = 0; i < receiver.messages_count; i++)
+    if (receiver.messages_count > 0)
     {
-        snprintf(send_msg, sizeof(send_msg), "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
-        write(receiver.cfd, send_msg, strlen(send_msg));
+        for (int i = 0; i < receiver.messages_count; i++)
+        {
+            // Dodajemy kolejną wiadomość w odpowiednim formacie do wiadomości wysyłanej do klienta
+            msg_length += snprintf(send_msg + msg_length, sizeof(send_msg) - msg_length - 1, "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
+        }
+        printf("Sending message to client: %s\n", send_msg); // Wypisz wiadomość przed wysłaniem
+        write(receiver.cfd, send_msg, msg_length);
     }
-
-    // Po wysłaniu wszystkich wiadomości wysyłamy pustą wiadomość jako sygnał kończący
-    //write(receiver.cfd, "END_OF_MESSAGES\n", strlen("END_OF_MESSAGES\n") + 1);
-    receiver.messages_count = 0; // Resetujemy liczbę wiadomości po wysłaniu
+    else
+    {
+        // Jeśli nie ma żadnych wiadomości, wysyłamy pustą wiadomość jako sygnał końca
+        pthread_mutex_unlock(&users_mutex);
+        write(receiver.cfd, "No messages\n", strlen("No messages\n") + 1);
+    }
 }
 
 void show_all_usernames(struct cln *client)
@@ -155,7 +162,10 @@ void *cthread(void *arg)
     {
 
         char choice[256];
-        ssize_t msg_length = read(cfd, choice, sizeof(choice) - 1); // Odbior wyboru
+        // TODO write z wiadomosciami
+
+        // Odbior wyboru
+        ssize_t msg_length = read(cfd, choice, sizeof(choice) - 1);
         if (msg_length <= 0)
         {
             // Błąd lub zamknięcie połączenia, wyjście z pętli
@@ -224,13 +234,10 @@ void *cthread(void *arg)
 
                     if (users.clients[i].id == received_id)
                     {
+                        char send_msg[MAX_USERNAME_LENGTH + msg_length + 2];
                         store_message(&users.clients[i], sender, message);
                         int test = users.clients[i].messages_count;
                         printf("Ilosc wiadomosci: %d\n", test);
-
-                        // char formatted_message[MAX_MESSAGE_LENGTH];
-                        // sprintf(formatted_message, "%s: %s", sender, message);
-                        // write(users.clients[i].cfd, formatted_message, strlen(formatted_message));
                         break;
                     }
                 }
