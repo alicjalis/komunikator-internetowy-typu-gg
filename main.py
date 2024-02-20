@@ -88,6 +88,7 @@ def main():
     print("Choose what you want to do: \n1 - send a message\n2 - check if you have any messages\n")
 
     while True:
+        # TODO read sprawdza czy ma wiad, dostaje albo no messages albo jakies messages
         choice = input("Enter your choice: ")
         client_socket.sendall(choice.encode('utf-8'))  # Wysłanie wyboru do serwera
         if choice == "1":
