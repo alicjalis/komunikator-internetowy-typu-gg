@@ -1,293 +1,158 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <pthread.h>
 #include <string.h>
-#include <stdbool.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <sys/stat.h>
 
-#define MAX_USERS 15
-#define MAX_USERNAME_LENGTH 20
-#define MAX_MESSAGES 10
-#define MAX_MESSAGE_LENGTH 256
-#define MAX_ERROR_MSG_LENGTH 300
-
-// Struktura przechowująca informacje o wiadomości
-struct message
-{
-    char sender[MAX_USERNAME_LENGTH];
-    char content[MAX_MESSAGE_LENGTH];
-};
-
-// Struktura przechowująca informacje o kliencie
-struct cln
-{
+int clientNum = 0;
+struct client {
     int cfd;
-    struct sockaddr_in caddr;
-    char nickname[MAX_USERNAME_LENGTH];
+    struct sockaddr_in clientAddr;
+    char name[32];
     int id;
-    struct message messages[MAX_MESSAGES];
-    int messages_count;
+    int len;
+
 };
 
-// Struktura przechowująca informacje o użytkownikach
-struct users
-{
-    int counter;
-    struct cln clients[MAX_USERS];
-};
-struct users users;
-
-// Mutexy do synchronizacji dostępu do struktury users
-pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-// Funkcja dodająca użytkownika do globalnej listy użytkowników
-void add_user(struct users *user_list, const char *usernames)
-{
-    pthread_mutex_lock(&users_mutex);
-    if (user_list->counter < MAX_USERS)
-    {
-        strcpy(user_list->clients[user_list->counter].nickname, usernames);
-        user_list->clients[user_list->counter].id = user_list->counter;
-        user_list->counter++;
-    }
-    else
-    {
-        printf("User list is full. Cannot add more users.\n");
-    }
-    pthread_mutex_unlock(&users_mutex);
-}
-
-// Funkcja przechowująca odebraną wiadomość u odbiorcy
-void store_message(struct cln *receiver, const char *sender, const char *message)
-{
-    if (receiver->messages_count < MAX_MESSAGES)
-    {
-        strcpy(receiver->messages[receiver->messages_count].sender, sender);
-        strcpy(receiver->messages[receiver->messages_count].content, message);
-        printf("wiadomosc: %s\n", message);
-        printf("sender: %s\n", sender);
-        printf("receiver: %s\n", receiver->nickname);
-        receiver->messages_count++;
-    }
-    else
-    {
-        printf("Message buffer is full for user %s. Cannot store more messages.\n", receiver->nickname);
-    }
-}
-
-// Funkcja wysyłająca wszystkie wiadomości do klienta
-void send_all_messages(struct cln receiver)
-{
-    char send_msg[MAX_MESSAGES * (MAX_USERNAME_LENGTH + MAX_MESSAGE_LENGTH)]; // Wiadomość może zawierać wiele wiadomości
-    int msg_length = 0;                                                       // Aktualna długość wiadomości
-
-    if (receiver.messages_count > 0)
-    {
-        for (int i = 0; i < receiver.messages_count; i++)
-        {
-            // Dodajemy kolejną wiadomość w odpowiednim formacie do wiadomości wysyłanej do klienta
-            msg_length += snprintf(send_msg + msg_length, sizeof(send_msg) - msg_length - 1, "%s: %s\n", receiver.messages[i].sender, receiver.messages[i].content);
-        }
-        printf("Sending message to client: %s\n", send_msg); // Wypisz wiadomość przed wysłaniem
-        write(receiver.cfd, send_msg, msg_length);
-    }
-    else
-    {
-        // Jeśli nie ma żadnych wiadomości, wysyłamy pustą wiadomość jako sygnał końca
-        pthread_mutex_unlock(&users_mutex);
-        write(receiver.cfd, "No messages\n", strlen("No messages\n") + 1);
-    }
-}
-
-void show_all_usernames(struct cln *client)
-{
-    char message[512];
-    pthread_mutex_lock(&users_mutex);
-    sprintf(message, "All usernames and IDs:\n");
-    for (size_t i = 0; i < users.counter; ++i)
-    {
-        sprintf(message + strlen(message), "- ID: %d, Username: %s\n", users.clients[i].id, users.clients[i].nickname);
-    }
-    pthread_mutex_unlock(&users_mutex);
-    write(client->cfd, message, strlen(message));
-}
+struct client client[1024];
+pthread_t thread[1024];
 
 // Wątek obsługujący komunikację z klientem
-void *cthread(void *arg)
-{
-    struct cln *client_info = (struct cln *)arg;
-    int cfd = client_info->cfd;
-    char receiver_id[256];
+void *cthread(void *ClientDetail) {
 
-    ssize_t username_rc = read(cfd, client_info->nickname, sizeof(client_info->nickname) - 1);
-    client_info->nickname[username_rc] = '\0';
-    printf("Client connected: %s\n", client_info->nickname);
-    // Sprawdź, czy użytkownik już istnieje na liście
-    int existing_user_index = -1;
-    for (int i = 0; i < users.counter; ++i)
-    {
-        if (strcmp(users.clients[i].nickname, client_info->nickname) == 0)
-        {
-            existing_user_index = i;
+    struct client *clientDetail = (struct client *) ClientDetail;
+    char username[32];
+    strncpy(username, clientDetail->name, 32);
+    int id = clientDetail->id;
+    int clientSocket = clientDetail->cfd;
+
+    printf("Client %d connected.\n", id + 1);
+
+    while (1) {
+
+        char data[1024];
+        char *command, *datarest;
+        int read = recv(clientSocket, data, 1024, 0);
+        data[read] = '\0';
+
+        if (read == 0) continue;
+        // odczytanie komendy
+        char *ptrdata = data;
+        command = strtok_r(ptrdata, " ", &datarest);
+
+        // wysylanie wiadomosci
+        if (strcmp(command, "SEND") == 0) {
+            // oddzielenie nadawcy od wiadomosci
+            char *ptrrecipent = strtok_r(datarest, " ", &datarest);
+            char recipent[32];
+            strncpy(recipent, ptrrecipent, 32);
+            int logged = 0;
+
+            //sprawdz czy uzytkownik jest dostepny sprawdzjac jego deskryptor
+            for (int i = 0; i < clientNum; i++) {
+                if (strcmp(recipent, client[i].name) == 0) {
+                    if (client[i].cfd != 0) logged = i + 1; 
+                }
+            }
+            if (logged > 0) {
+                send(client[logged - 1].cfd, datarest, strlen(datarest), 0);
+            } else {
+                //zapis wiadomosci dla uzytkownika offline
+                char path[128] = "./offline_messages/";
+                strcat(path, recipent);
+
+                FILE *file = fopen(path, "a");
+                fprintf(file, "%s\n", datarest);
+                fclose(file);
+            }
+        }
+
+        // polaczenie z serwerem, zapisanie klienta jako online
+        if (strcmp(command, "LOGIN") == 0) {
+            printf("User %s online\n", datarest);
+            strncpy(client[id].name, datarest, 32);
+
+            //Sprawdz czy uzytkownik nie ma zadnych nieprzeczytanych wiadomosci
+            char path[128] = "./offline_messages/";
+            char owner[32];
+            strcpy(owner, client[id].name);
+            strcat(path, owner); // dodanie klienta do sciezki, plik z nieodebranymi wiadomosciami
+            //tworzenie osobnego pliku dla kazdego klienta
+            char line[1024];
+            ssize_t line_size;
+            char *line_buf = NULL;
+            size_t line_buf_size = 0;
+            FILE *file = fopen(path, "r");
+            if (file == NULL) continue;
+            line_size = getline(&line_buf, &line_buf_size, file);
+            while (line_size >= 0) {
+                //przygotowanie wiadomosci, wysylanie
+                strcpy(line, ""); // kazda linia to jedna wiadomosc od nadawcy
+                strcat(line, line_buf);
+
+                send(client[id].cfd, line, strlen(line), 0);
+                line_size = getline(&line_buf, &line_buf_size, file);
+                usleep(500000); // zatrzymanie na 0.5s zeby poprawic plynnosc
+            }
+            
+            remove(path);
+            fclose(file);
+        }
+        // rozlaczenie z serwerem, zapisanie klienta jako offline
+        if (strcmp(command, "DISCONNECT") == 0) {
+            close(client[id].cfd);
+            client[id].cfd = 0;
+            printf("User %s disconnected\n", client[id].name);
+            sleep(500000);
             break;
         }
+
     }
 
-    // Jeśli użytkownik istnieje, zaktualizuj jego deskryptor
-    if (existing_user_index != -1)
-    {
-        users.clients[existing_user_index].cfd = cfd;
-        // Odeślij klientowi jego istniejące id
-        char id_buffer[10];
-        sprintf(id_buffer, "%d\n", users.clients[existing_user_index].id);
-        write(cfd, id_buffer, strlen(id_buffer));
-        show_all_usernames(client_info);
-    }
-    else
-    {
-        // Użytkownik nie istnieje, więc dodaj go do listy
-        client_info->id = users.counter; // Nowe id
-        add_user(&users, client_info->nickname);
-        // Odeślij klientowi jego nowe id
-        char id_buffer[10];
-        sprintf(id_buffer, "%d\n", client_info->id);
-        write(cfd, id_buffer, strlen(id_buffer));
-        show_all_usernames(client_info);
-    }
-    int id = client_info->id;
-    while (1)
-    {
-
-        char choice[256];
-        // TODO write z wiadomosciami
-
-        // Odbior wyboru
-        ssize_t msg_length = read(cfd, choice, sizeof(choice) - 1);
-        if (msg_length <= 0)
-        {
-            // Błąd lub zamknięcie połączenia, wyjście z pętli
-            perror("Error reading data");
-            break;
-        }
-        choice[msg_length] = '\0';
-        if (strcmp(choice, "1") == 0)
-        {
-
-            ssize_t rc = read(cfd, receiver_id, sizeof(receiver_id));
-            if (rc <= 0)
-            {
-                // Błąd lub zamknięcie połączenia, wyjście z pętli
-                perror("Error reading data");
-                break;
-            }
-
-            receiver_id[rc] = '\0';
-            int received_id = atoi(receiver_id); // Konwertowanie otrzymanego ciągu na int
-
-            // Sprawdzanie, czy klient o danym id istnieje
-            int client_exists = 0;
-            for (int i = 0; i < users.counter; ++i)
-            {
-
-                if (users.clients[i].id == received_id)
-                {
-                    char send_msg[256];
-                    sprintf(send_msg, "You can send a message\n");
-                    write(cfd, send_msg, strlen(send_msg));
-                    printf("client exists na 1\n");
-                    client_exists = 1;
-                    break;
-                }
-            }
-
-            if (client_exists == 0)
-            {
-                printf("No such user: %d\n", received_id);
-                char error_msg[256];
-                sprintf(error_msg, "No such user: %d\n", received_id);
-                write(cfd, error_msg, strlen(error_msg));
-            }
-
-            if (client_exists == 1)
-            {
-                char message[256];
-                ssize_t msg_length = read(cfd, message, sizeof(message) - 1);
-                if (msg_length <= 0)
-                {
-                    // Błąd lub zamknięcie połączenia, wyjście z pętli
-                    perror("Error reading data");
-                    break;
-                }
-
-                message[msg_length] = '\0';
-                // Znajdź nadawcę wiadomości
-                char sender[MAX_USERNAME_LENGTH];
-                strcpy(sender, client_info->nickname);
-                printf(" %s\n", client_info->nickname);
-
-                // Przechowywanie wiadomości u odpowiedniego klienta
-                for (size_t i = 0; i < users.counter; ++i)
-                {
-
-                    if (users.clients[i].id == received_id)
-                    {
-                        char send_msg[MAX_USERNAME_LENGTH + msg_length + 2];
-                        store_message(&users.clients[i], sender, message);
-                        int test = users.clients[i].messages_count;
-                        printf("Ilosc wiadomosci: %d\n", test);
-                        break;
-                    }
-                }
-            }
-        }
-        else if (strcmp(choice, "2") == 0)
-        {
-            send_all_messages(users.clients[id]);
-        }
-        else
-        {
-            // W przypadku innego wyboru, poinformuj klienta o błędzie
-            char error_msg[MAX_ERROR_MSG_LENGTH];
-            snprintf(error_msg, sizeof(error_msg), "Invalid choice: %s\n", choice);
-            write(cfd, error_msg, strlen(error_msg));
-        }
-    }
-    // Zamknięcie socketu klienta
-    close(cfd);
-    free(client_info);
-
+    pthread_join(thread[id], NULL);
     return NULL;
+
 }
 
-int main()
-{
-    pthread_t tid;
-    socklen_t sl;
-    int sfd;
+int main(void) {
+    //Inicjalizacja socketow
+    int serverSocket = socket(PF_INET, SOCK_STREAM, 0);
 
-    struct sockaddr_in saddr;
-    saddr.sin_family = AF_INET;
-    saddr.sin_port = htons(1234);
+    struct sockaddr_in serverAddr;
 
-    sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    bind(sfd, (struct sockaddr *)&saddr, sizeof(saddr));
-    listen(sfd, 10);
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(1234);
+    serverAddr.sin_addr.s_addr = htons(INADDR_ANY);
+    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) == -1) return 0;
+    //listen
+    if (listen(serverSocket, 1024) == -1) return 0;
 
-    while (1)
-    {
-        int *cfd_ptr = malloc(sizeof(int));
-        sl = sizeof(struct sockaddr_in);
-        *cfd_ptr = accept(sfd, (struct sockaddr *)&saddr, &sl);
+    printf("Server is up\n");
 
-        pthread_create(&tid, NULL, cthread, cfd_ptr);
-        pthread_detach(tid);
+    //tworzenie folderu w celu rejestrowania wiadomosci
+    struct stat st = {0};
+
+    if (stat("./offline_messages", &st) == -1) {
+        mkdir("./offline_messages", 0777);
     }
+    // tworzenie watkow klientow
+    while (1) {
+        unsigned int c = client[clientNum].len;
+        client[clientNum].cfd = accept(serverSocket, (struct sockaddr *) &client[clientNum].clientAddr, &c);
+        client[clientNum].id = clientNum;
+        pthread_create(&thread[clientNum], NULL, cthread, (void *) &client[clientNum]);
+        clientNum++;
 
-    // Zamkniecie socketu serwera
-    close(sfd);
+    }
+    //zamknij wszystko
+    for (int i = 0; i < clientNum; i++)
+        pthread_join(thread[i], NULL);
+    close(serverSocket);
 
-    return 0;
 }
