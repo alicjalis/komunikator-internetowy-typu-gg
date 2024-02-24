@@ -39,11 +39,8 @@ należy wpisać:
 
 ## Działanie programu
 Po odpaleniu program poprosi o wpisanie
-nickname. Następnie do wyboru jest sprawdzenie
-wiadomości lub napisanie do innego klienta. 
-Wprowadzając odpowiedni numer użytkownik
-wykonuje odpowienią czynność, po czym wraca do
-menu wyboru.
+nickname. Wyswietlone zostana nieodebrane wiadomosci, a program prosi o nickname osoby do ktorej chcemy napisac 
+wiadomosc. Można wpisać nickname, lub kliknąć na nieodebraną wiadomość w celu przejścia do konwersacji. 
 
 
 
