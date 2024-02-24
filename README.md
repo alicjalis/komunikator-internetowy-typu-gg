@@ -21,7 +21,7 @@ numer portu.
 
 Do kompilacji serwera należy użyć polecenia:
 
-`gcc -o server server.c`
+`gcc -pthread -o server server.c`
 
 Aby uruchomić serwer należy użyć polecenia:
 
