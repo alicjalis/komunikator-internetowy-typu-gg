@@ -98,7 +98,6 @@ void *cthread(void *ClientDetail) {
 
                 send(client[id].cfd, line, strlen(line), 0);
                 line_size = getline(&line_buf, &line_buf_size, file);
-                usleep(500000); // zatrzymanie na 0.5s zeby poprawic plynnosc
             }
             
             remove(path);
